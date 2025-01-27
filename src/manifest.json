@@ -1,0 +1,14 @@
+{
+  "servers": [
+    {
+      "name": "beeai-community",
+      "transports": [
+        {
+          "type": "stdio",
+          "command": "npx",
+          "args": ["-y", "github:i-am-bee/provider-example", "--llm", "ollama"]
+        }
+      ]
+    }
+  ]
+}
