@@ -1,7 +1,6 @@
 {
-  "servers": [
-    {
-      "name": "beeai-community",
+  "mcpServers": {
+    "beeai-community": {
       "transports": [
         {
           "type": "stdio",
@@ -10,5 +9,5 @@
         }
       ]
     }
-  ]
+  }
 }
