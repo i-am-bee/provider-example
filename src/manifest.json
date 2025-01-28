@@ -6,6 +6,16 @@
           "type": "stdio",
           "command": "npx",
           "args": ["-y", "github:i-am-bee/provider-example", "--llm", "ollama"]
+        },
+        {
+          "type": "stdio",
+          "command": "docker",
+          "args": [
+            "run",
+            "-i",
+            "--rm",
+            "ghcr.io/i-am-bee/provider-example:main"
+          ]
         }
       ]
     }
