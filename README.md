@@ -7,4 +7,4 @@ Example implementation of agent provider.
 Agent provider needs to implement two components:
 
 - MCP server with agents capability
-- Manifest file that describes how to run the server
+- Manifest file that describes how connect to the the server (available MCP transports)
