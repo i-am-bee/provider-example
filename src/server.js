@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { z } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
+
 import { OllamaChatLLM } from "bee-agent-framework/adapters/ollama/chat";
 import { BeeAgent } from "bee-agent-framework/agents/bee/agent";
 import { StreamlitAgent } from "bee-agent-framework/agents/experimental/streamlit/agent";
@@ -11,29 +14,22 @@ import { DuckDuckGoSearchTool } from "bee-agent-framework/tools/search/duckDuckG
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { MCPTool } from "bee-agent-framework/tools/mcp";
-import { OpenAIChatLLM } from "bee-agent-framework/adapters/openai/chat";
 
-function createLLM() {
-  const idx = process.argv.findIndex((arg) => arg === "--llm");
-  const llm = process.argv[idx + 1];
-  switch (llm) {
+function createLLM(type) {
+  switch (type) {
     case "ollama":
       return new OllamaChatLLM();
-    case "openai":
-      return new OpenAIChatLLM();
     default:
-      throw new Error(`Unsupported llm ${llm}`);
+      throw new Error(`Unsupported llm ${type}`);
   }
 }
-
-const llm = createLLM();
 
 async function registerTools(server) {
   const weatherTool = new OpenMeteoTool();
   server.tool(
-    weatherTool.name,
+    "weather",
     weatherTool.description,
-    await weatherTool.getInputJsonSchema(),
+    { ...(await weatherTool.inputSchema().shape) },
     (args) => {
       return weatherTool.run(args);
     }
@@ -41,9 +37,9 @@ async function registerTools(server) {
 
   const searchTool = new DuckDuckGoSearchTool();
   server.tool(
-    searchTool.name,
+    "search",
     searchTool.description,
-    await searchTool.getInputJsonSchema(),
+    { ...(await weatherTool.inputSchema().shape) },
     (args) => {
       return searchTool.run(args);
     }
@@ -53,16 +49,20 @@ async function registerTools(server) {
 async function registerAgents(server) {
   server.agent(
     "Bee",
+    "General purpose agent",
     {
-      description: "General purpose agent",
+      llm: z.union([z.object({ type: z.literal("ollama") })]),
+      tools: z.array(z.enum("weather", "search")),
     },
-    async ({ tools, prompt }) => {
+    async ({ config, prompt }) => {
       const [client] = await createClientServerLinkedPair();
       try {
         const availableTools = await MCPTool.fromClient(client);
         const output = await new BeeAgent({
-          llm,
-          tools: availableTools.filter((tool) => tools.includes(tool.name)),
+          llm: createLLM(config.llm.type),
+          tools: availableTools.filter((tool) =>
+            config.tools.includes(tool.name)
+          ),
           memory: new UnconstrainedMemory(),
         }).run({
           prompt,
@@ -78,13 +78,14 @@ async function registerAgents(server) {
 
   server.agent(
     "Streamlit",
+    "Streamlit agent",
     {
-      description: "Streamlit agent",
-      tools: [],
+      llm: z.union([z.object({ type: z.literal("ollama") })]),
+      tools: z.array(z.enum("weather", "search")),
     },
-    async ({ prompt }) => {
+    async ({ config, prompt }) => {
       const output = await new StreamlitAgent({
-        llm,
+        llm: createLLM(config.llm.type),
         memory: new UnconstrainedMemory(),
       }).run({ prompt });
       return {

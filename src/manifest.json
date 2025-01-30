@@ -5,7 +5,7 @@
         {
           "type": "stdio",
           "command": "npx",
-          "args": ["-y", "github:i-am-bee/provider-example", "--llm", "ollama"]
+          "args": ["-y", "github:i-am-bee/provider-example"]
         },
         {
           "type": "stdio",
