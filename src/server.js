@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
 
 import { OllamaChatLLM } from "bee-agent-framework/adapters/ollama/chat";
 import { BeeAgent } from "bee-agent-framework/agents/bee/agent";
@@ -24,6 +23,10 @@ function createLLM(type) {
   }
 }
 
+/**
+ *
+ * @param {McpServer} server
+ */
 async function registerTools(server) {
   const weatherTool = new OpenMeteoTool();
   server.tool(
@@ -46,6 +49,10 @@ async function registerTools(server) {
   );
 }
 
+/**
+ *
+ * @param {McpServer} server
+ */
 async function registerAgents(server) {
   server.agent(
     "Bee",
@@ -68,7 +75,7 @@ async function registerAgents(server) {
           prompt,
         });
         return {
-          text: output.result.text,
+          content: [{ type: "text", text: output.result.text }],
         };
       } finally {
         await client.close();
@@ -89,7 +96,7 @@ async function registerAgents(server) {
         memory: new UnconstrainedMemory(),
       }).run({ prompt });
       return {
-        text: output.result.raw,
+        content: [{ type: "text", text: output.result.raw }],
       };
     }
   );
