@@ -61,25 +61,48 @@ async function registerAgents(server) {
       llm: z.union([z.object({ type: z.literal("ollama") })]),
       tools: z.array(z.enum("weather", "search")),
     },
-    async ({ config, prompt }) => {
+    {
+      prompt: z.string(),
+    },
+    {
+      text: z.string(),
+    },
+    async ({ config }) => {
       const [client] = await createClientServerLinkedPair();
-      try {
-        const availableTools = await MCPTool.fromClient(client);
-        const output = await new BeeAgent({
-          llm: createLLM(config.llm.type),
-          tools: availableTools.filter((tool) =>
-            config.tools.includes(tool.name)
-          ),
-          memory: new UnconstrainedMemory(),
-        }).run({
-          prompt,
-        });
-        return {
-          content: [{ type: "text", text: output.result.text }],
-        };
-      } finally {
-        await client.close();
-      }
+
+      const availableTools = await MCPTool.fromClient(client);
+      const agent = await new BeeAgent({
+        llm: createLLM(config.llm.type),
+        tools: availableTools.filter((tool) =>
+          config.tools.includes(tool.name)
+        ),
+        memory: new UnconstrainedMemory(),
+      });
+
+      return [
+        async (request, { signal }) => {
+          const output = await agent
+            .run({ prompt: request.params.input.prompt }, { signal })
+            .observe((emitter) => {
+              if (request.params._meta?.progressToken)
+                emitter.on("partialUpdate", ({ update: { value } }) => {
+                  server.server.sendAgentRunProgress({
+                    progressToken: request.params._meta.progressToken,
+                    delta: {
+                      text: value,
+                    },
+                  });
+                });
+            });
+          return {
+            text: output.result.text,
+          };
+        },
+        () => {
+          agent.destroy();
+          client.close();
+        },
+      ];
     }
   );
 
@@ -88,16 +111,29 @@ async function registerAgents(server) {
     "Streamlit agent",
     {
       llm: z.union([z.object({ type: z.literal("ollama") })]),
-      tools: z.array(z.enum("weather", "search")),
     },
-    async ({ config, prompt }) => {
-      const output = await new StreamlitAgent({
+    {
+      prompt: z.string(),
+    },
+    {
+      code: z.string(),
+    },
+    async ({ params: { config } }) => {
+      const agent = new StreamlitAgent({
         llm: createLLM(config.llm.type),
         memory: new UnconstrainedMemory(),
-      }).run({ prompt });
-      return {
-        content: [{ type: "text", text: output.result.raw }],
-      };
+      });
+      return [
+        async ({ prompt }) => {
+          const output = await agent.run({ prompt });
+          return {
+            code: output.result.raw,
+          };
+        },
+        () => {
+          agent.destroy();
+        },
+      ];
     }
   );
 }
