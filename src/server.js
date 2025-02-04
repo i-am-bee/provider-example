@@ -67,42 +67,49 @@ async function registerAgents(server) {
     {
       text: z.string(),
     },
-    async ({ config }) => {
+    {
+      something: "foobar",
+    },
+    async (request) => {
       const [client] = await createClientServerLinkedPair();
 
       const availableTools = await MCPTool.fromClient(client);
       const agent = await new BeeAgent({
-        llm: createLLM(config.llm.type),
+        llm: createLLM(request.params.config.llm.type),
         tools: availableTools.filter((tool) =>
           config.tools.includes(tool.name)
         ),
         memory: new UnconstrainedMemory(),
       });
 
-      return [
-        async (request, { signal }) => {
-          const output = await agent
-            .run({ prompt: request.params.input.prompt }, { signal })
-            .observe((emitter) => {
-              if (request.params._meta?.progressToken)
-                emitter.on("partialUpdate", ({ update: { value } }) => {
-                  server.server.sendAgentRunProgress({
-                    progressToken: request.params._meta.progressToken,
-                    delta: {
-                      text: value,
-                    },
+      return {
+        agent: {
+          name: request.params.name,
+          description: request.params.description,
+          run: async (request, { signal }) => {
+            const output = await agent
+              .run({ prompt: request.params.input.prompt }, { signal })
+              .observe((emitter) => {
+                if (request.params._meta?.progressToken)
+                  emitter.on("partialUpdate", ({ update: { value } }) => {
+                    server.server.sendAgentRunProgress({
+                      progressToken: request.params._meta.progressToken,
+                      delta: {
+                        text: value,
+                      },
+                    });
                   });
-                });
-            });
-          return {
-            text: output.result.text,
-          };
+              });
+            return {
+              text: output.result.text,
+            };
+          },
+          destroy: () => {
+            agent.destroy();
+            client.close();
+          },
         },
-        () => {
-          agent.destroy();
-          client.close();
-        },
-      ];
+      };
     }
   );
 
